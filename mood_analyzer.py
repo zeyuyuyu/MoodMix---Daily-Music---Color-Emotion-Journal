@@ -1,90 +1,102 @@
-# MoodMix Sentiment Analyzer
-import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
-from typing import Dict, Tuple
+from textblob import TextBlob
 import colorsys
 
 class MoodAnalyzer:
     def __init__(self):
-        # Download required NLTK data
-        try:
-            nltk.data.find('vader_lexicon')
-        except LookupError:
-            nltk.download('vader_lexicon')
-        
-        self.sia = SentimentIntensityAnalyzer()
-        
-        # Music genre mappings based on sentiment
-        self.genre_mappings = {
-            'very_positive': ['Happy Pop', 'Upbeat Electronic', 'Dance'],
-            'positive': ['Pop', 'Indie Rock', 'Folk'],
-            'neutral': ['Ambient', 'Classical', 'Jazz'],
-            'negative': ['Blues', 'Alternative', 'Indie Folk'],
-            'very_negative': ['Dark Ambient', 'Melancholic Classical', 'Emotional Ballads']
+        self.mood_colors = {
+            'joy': '#FFD700',      # Gold
+            'sadness': '#4682B4',  # Steel Blue
+            'anger': '#DC143C',    # Crimson
+            'fear': '#800080',     # Purple
+            'neutral': '#A9A9A9',  # Dark Gray
+            'excitement': '#FF4500' # Orange Red
         }
 
-    def analyze_mood(self, text: str) -> Dict:
-        """Analyze text and return sentiment scores, color, and music recommendations"""
-        sentiment_scores = self.sia.polarity_scores(text)
+    def analyze_mood(self, text):
+        """Analyze text and return mood classification with confidence score"""
+        analysis = TextBlob(text)
         
-        # Get compound score and determine mood category
-        compound = sentiment_scores['compound']
-        mood_category = self._get_mood_category(compound)
+        # Get polarity (-1 to 1) and subjectivity (0 to 1)
+        polarity = analysis.sentiment.polarity
+        subjectivity = analysis.sentiment.subjectivity
         
-        # Generate color based on sentiment
-        color = self._generate_mood_color(compound)
-        
-        # Get music recommendations
-        music_genres = self.genre_mappings[mood_category]
-        
-        return {
-            'sentiment_scores': sentiment_scores,
-            'mood_category': mood_category,
-            'color': color,
-            'music_recommendations': music_genres
-        }
-    
-    def _get_mood_category(self, compound_score: float) -> str:
-        """Categorize mood based on compound sentiment score"""
-        if compound_score >= 0.5:
-            return 'very_positive'
-        elif 0.5 > compound_score >= 0.1:
-            return 'positive'
-        elif 0.1 > compound_score > -0.1:
-            return 'neutral'
-        elif -0.1 >= compound_score > -0.5:
-            return 'negative'
+        # Determine base mood
+        if polarity > 0.5:
+            mood = 'joy' if subjectivity < 0.5 else 'excitement'
+        elif polarity < -0.5:
+            mood = 'sadness' if subjectivity < 0.5 else 'anger'
+        elif polarity < -0.2:
+            mood = 'fear'
         else:
-            return 'very_negative'
-    
-    def _generate_mood_color(self, compound_score: float) -> str:
-        """Generate a color based on sentiment score"""
-        # Map sentiment score (-1 to 1) to hue (0 to 1)
-        hue = (compound_score + 1) / 2
-        
-        # Set saturation and value based on absolute sentiment intensity
-        saturation = min(abs(compound_score) + 0.5, 1.0)
-        value = 0.9  # Keep brightness relatively high for visibility
-        
-        # Convert HSV to RGB
-        rgb = colorsys.hsv_to_rgb(hue, saturation, value)
-        
-        # Convert RGB to hex color code
-        hex_color = '#{:02x}{:02x}{:02x}'.format(
-            int(rgb[0] * 255),
-            int(rgb[1] * 255),
-            int(rgb[2] * 255)
-        )
-        
-        return hex_color
+            mood = 'neutral'
+            
+        return {
+            'mood': mood,
+            'color': self.mood_colors[mood],
+            'confidence': abs(polarity) * 100,
+            'intensity': subjectivity * 100
+        }
 
-    def get_mood_summary(self, text: str) -> str:
-        """Generate a human-readable mood summary"""
-        analysis = self.analyze_mood(text)
+    def generate_color_gradient(self, mood1, mood2, steps=5):
+        """Generate a gradient between two mood colors"""
+        color1 = self.mood_colors[mood1].lstrip('#')
+        color2 = self.mood_colors[mood2].lstrip('#')
         
-        summary = f"Mood Analysis Summary:\n"
-        summary += f"Overall mood: {analysis['mood_category'].replace('_', ' ').title()}\n"
-        summary += f"Color suggestion: {analysis['color']}\n"
-        summary += f"Music recommendations: {', '.join(analysis['music_recommendations'])}\n"
+        # Convert hex to RGB
+        rgb1 = tuple(int(color1[i:i+2], 16) for i in (0, 2, 4))
+        rgb2 = tuple(int(color2[i:i+2], 16) for i in (0, 2, 4))
         
-        return summary
+        # Convert RGB to HSV
+        hsv1 = colorsys.rgb_to_hsv(*[x/255.0 for x in rgb1])
+        hsv2 = colorsys.rgb_to_hsv(*[x/255.0 for x in rgb2])
+        
+        # Generate gradient
+        gradient = []
+        for i in range(steps):
+            ratio = i / float(steps-1)
+            hsv = tuple(h1 + ratio * (h2 - h1) for h1, h2 in zip(hsv1, hsv2))
+            rgb = colorsys.hsv_to_rgb(*hsv)
+            hex_color = '#{:02x}{:02x}{:02x}'.format(
+                int(rgb[0] * 255),
+                int(rgb[1] * 255),
+                int(rgb[2] * 255)
+            )
+            gradient.append(hex_color)
+            
+        return gradient
+
+    def get_musical_suggestion(self, mood):
+        """Suggest musical characteristics based on mood"""
+        suggestions = {
+            'joy': {
+                'tempo': 'upbeat (120-140 BPM)',
+                'key': 'major',
+                'genres': ['Pop', 'Dance', 'Happy Folk']
+            },
+            'sadness': {
+                'tempo': 'slow (60-80 BPM)',
+                'key': 'minor',
+                'genres': ['Blues', 'Slow Jazz', 'Classical']
+            },
+            'anger': {
+                'tempo': 'fast (140+ BPM)',
+                'key': 'minor',
+                'genres': ['Rock', 'Metal', 'Intense Electronic']
+            },
+            'fear': {
+                'tempo': 'varied',
+                'key': 'diminished/atonal',
+                'genres': ['Ambient', 'Dark Electronic', 'Experimental']
+            },
+            'neutral': {
+                'tempo': 'moderate (90-120 BPM)',
+                'key': 'mixed',
+                'genres': ['Indie', 'Alternative', 'Instrumental']
+            },
+            'excitement': {
+                'tempo': 'energetic (130+ BPM)',
+                'key': 'major',
+                'genres': ['EDM', 'House', 'Uplifting Rock']
+            }
+        }
+        return suggestions.get(mood, suggestions['neutral'])
