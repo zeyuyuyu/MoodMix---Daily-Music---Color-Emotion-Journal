@@ -1,47 +1,65 @@
 import os
 import random
-import numpy as np
-from sklearn.linear_model import LinearRegression
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
 
 class MoodAnalyzer:
-    def __init__(self, music_library_path):
-        self.music_library_path = music_library_path
-        self.music_data = self.load_music_data()
-        self.model = self.train_mood_model()
+    def __init__(self, client_id, client_secret):
+        self.sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=client_id, client_secret=client_secret))
 
-    def load_music_data(self):
-        music_data = []
-        for filename in os.listdir(self.music_library_path):
-            if filename.endswith('.mp3'):
-                # Extract mood and other features from the audio file
-                mood, bpm, energy = self.extract_audio_features(os.path.join(self.music_library_path, filename))
-                music_data.append({'filename': filename, 'mood': mood, 'bpm': bpm, 'energy': energy})
-        return music_data
+    def analyze_mood(self, text):
+        # Use natural language processing to analyze the text and determine the user's mood
+        mood = self.determine_mood(text)
+        return mood
 
-    def extract_audio_features(self, file_path):
-        # Implement logic to extract mood, bpm, and energy features from the audio file
-        mood = random.uniform(-1, 1)
-        bpm = random.uniform(60, 140)
-        energy = random.uniform(0, 1)
-        return mood, bpm, energy
+    def recommend_music(self, mood):
+        # Use the determined mood to recommend appropriate music
+        playlist = self.create_playlist(mood)
+        return playlist
 
-    def train_mood_model(self):
-        X = np.array([song['bpm'] for song in self.music_data]).reshape(-1, 1)
-        y = np.array([song['mood'] for song in self.music_data])
-        model = LinearRegression()
-        model.fit(X, y)
-        return model
+    def determine_mood(self, text):
+        # Implement mood analysis logic here
+        # For example, use sentiment analysis to determine the user's mood
+        if 'happy' in text.lower():
+            return 'happy'
+        elif 'sad' in text.lower():
+            return 'sad'
+        elif 'angry' in text.lower():
+            return 'angry'
+        else:
+            return 'neutral'
 
-    def recommend_music(self, target_mood):
-        recommendations = []
-        for song in self.music_data:
-            predicted_mood = self.model.predict([[song['bpm']]])[0]
-            mood_distance = abs(predicted_mood - target_mood)
-            recommendations.append({'filename': song['filename'], 'mood_distance': mood_distance})
-        recommendations.sort(key=lambda x: x['mood_distance'])
-        return [rec['filename'] for rec in recommendations[:5]]
+    def create_playlist(self, mood):
+        # Use the Spotify API to create a playlist based on the user's mood
+        if mood == 'happy':
+            track_ids = self.get_happy_tracks()
+        elif mood == 'sad':
+            track_ids = self.get_sad_tracks()
+        elif mood == 'angry':
+            track_ids = self.get_angry_tracks()
+        else:
+            track_ids = self.get_neutral_tracks()
 
-# Example usage
-analyzer = MoodAnalyzer('/path/to/music/library')
-recommended_songs = analyzer.recommend_music(0.7)
-print(recommended_songs)
+        playlist = self.sp.user_playlist_create(user=os.getenv('SPOTIFY_USER_ID'), name=f"{mood.capitalize()} Mood Playlist")
+        self.sp.playlist_add_items(playlist['id'], track_ids)
+        return playlist
+
+    def get_happy_tracks(self):
+        # Implement logic to retrieve happy tracks from Spotify
+        happy_track_ids = ['spotify:track:3Dv1eDb0MEgF93GpLXlucZ', 'spotify:track:7BKLCZ1jbUBVqRi2FVlTVw', 'spotify:track:3eekarcy7kvN4yt5ZFzltW']
+        return happy_track_ids
+
+    def get_sad_tracks(self):
+        # Implement logic to retrieve sad tracks from Spotify
+        sad_track_ids = ['spotify:track:0HPD5WQqrq7wPWcjWKzlBH', 'spotify:track:1m689dPrLnLzBtMFILRvSF', 'spotify:track:4N3oNjlCDdJnA5DDcBr9Qj']
+        return sad_track_ids
+
+    def get_angry_tracks(self):
+        # Implement logic to retrieve angry tracks from Spotify
+        angry_track_ids = ['spotify:track:0ysYTpXFaB7J4MXQvBqKDY', 'spotify:track:6agKhXoHLUg2aTuP6BPjqJ', 'spotify:track:5a2EaR3hamoenG9rDuVn8j']
+        return angry_track_ids
+
+    def get_neutral_tracks(self):
+        # Implement logic to retrieve neutral tracks from Spotify
+        neutral_track_ids = ['spotify:track:3Dv1eDb0MEgF93GpLXlucZ', 'spotify:track:7BKLCZ1jbUBVqRi2FVlTVw', 'spotify:track:3eekarcy7kvN4yt5ZFzltW']
+        return neutral_track_ids
